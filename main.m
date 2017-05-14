@@ -190,13 +190,14 @@ fprintf('PART II - Reference tracking...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MPC data
 Q = diag([2 2 2 1 0 0 0]);
-R = 0.0;
+R = 0.01;
 N = 100;
 P = diag([2 2 2 1 0 0 0]);
 
 % Controller Variable Initialization
 X = sdpvar(nx,N+1); % state trajectory: x0,x1,...,xN (columns of X)
 Uin = sdpvar(nu,N); % input trajectory: u0,...,u_{N-1} (columns of U)
+Ref = sdpvar(4,1);
 
 % Initialize objective and constraints of the problem
 cost = 0.0; const = [];
@@ -204,23 +205,20 @@ cost = 0.0; const = [];
 % Assemble MPC formulation
 for i = 1:N
     
-    ref = [1.0
-    0.1745 * sin(sys.Ts * i)
-    -0.1745
-    pi/2
-    0
-    0
-    0];   
+    ref = [Ref(:,1)
+            0
+            0
+            0];
     
     % cost
     if( i < N )
-        cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + (Uin(:,i)-pinv(B)*(ref-A*ref))'*R*(Uin(:,i)-pinv(B)*(ref-A*ref));
+        cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
     else
-        cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + (Uin(:,N)-pinv(B)*(ref-A*ref))'*R*(Uin(:,N)-pinv(B)*(ref-A*ref));
+        cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
     end
     
     % model
-    const = [const, (X(:,i+1)-ref) == A*(X(:,i)-ref) + B*(Uin(:,i)-pinv(B)*(ref-A*ref))];
+    const = [const, X(:,i+1) == A*X(:,i) + B*Uin(:,i)];
     
     % bounds
     const = [const, Umin <= Uin(:,i) <= Umax];
@@ -235,18 +233,36 @@ x0 = [0
     0
     0];
 
+% Part 5 Reference
+r = [1.0
+    0.1745
+    -0.1745
+    1.7453];
+
+% Part 6 Reference
+T = 10;
+steps = floor(T/sys.Ts);
+for step = 1:steps
+    r(1,step) = 1;
+    r(2,step) = 0.1745*sin(step*sys.Ts);
+    r(3,step) = -0.1745*sin(step*sys.Ts);
+    r(4,step) = 1.7453;
+end
+
 % Solve and plot
 options = sdpsettings('solver','quadprog');
-innerController = optimizer(const, cost, options, X(:,1), Uin(:,1));
-simQuad( sys_inner, innerController, 0, x0, 10.0);
+innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)']', Uin(:,1));
+simQuad( sys_inner, innerController, 0, x0, T, r);
 
 %%%%%%%%%%%%%%%  First simulation of the nonlinear model %%%%%%%%%%%%%%%%%
 fprintf('PART III - First simulation of the nonlinear model...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Did this.
 
 %%%%%%%%%%%%%%%%%%%%%%%  Offset free MPC  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART IV - Offset free MPC...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 %%%%%%%%%%%%%%%%%%  Simulation of the nonlinear model %%%%%%%%%%%%%%%%%%%%
 fprintf('PART V - simulation of the nonlinear model...\n')
