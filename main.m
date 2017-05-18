@@ -3,6 +3,8 @@ close all
 yalmip('clear')
 clc
 
+%MPC Project
+
 % adding the subfolders to the path
 addpath(genpath('YALMIP-master'))
 addpath(genpath('functions'))
