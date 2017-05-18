@@ -242,13 +242,8 @@ if (runSecondPart == true)
         const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i)];
 
         % bounds
-        if ( i < N )
-            const = [const, Umin <= Uin(:,i) <= Umax];
-            const = [const, Xmin-ref <= X_delta_k_1 <= Xmax-ref];
-        else
-            const = [const, Umin <= Uin(:,N) <= Umax];
-            const = [const, X_fmin-ref <= X_delta_N <= X_fmax-ref];
-        end
+        const = [const, Umin <= Uin(:,i) <= Umax];
+        const = [const, Xmin-ref <= X_delta_k_1 <= Xmax-ref];
     end
 
     x0 = [0
