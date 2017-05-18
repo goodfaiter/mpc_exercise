@@ -21,7 +21,8 @@ disp('Data successfully loaded')
 %%%%%%%%%%%%%%%% ADD YOUR CODE BELOW THIS LINE %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 runFirstPart = false;
-runSecondPart = false;
+runSecondPart = true;
+runThirdPart =false;
 
 %%%%%%%%%%%%%%%%%%%%%    First MPC controller %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART I - First MPC controller...\n')
@@ -196,36 +197,58 @@ N = 100;
 P = diag([2 2 2 1 0 0 0]);
 
 if (runSecondPart == true)
-
+    
     % Controller Variable Initialization
     X = sdpvar(nx,N+1); % state trajectory: x0,x1,...,xN (columns of X)
     Uin = sdpvar(nu,N); % input trajectory: u0,...,u_{N-1} (columns of U)
     Ref = sdpvar(4,1);
+    
 
     % Initialize objective and constraints of the problem
     cost = 0.0; const = [];
-
+    
+    % Delta-Formulation for tracking
+%     This calculation gives the steady state solution to be:
+%     xs = ref, us = 0;
+%     syms r1 r2 r3 r4;
+%     rr = [r1;r2;r3;r4];
+%     C = [eye(4) zeros(4,3)];
+%     temp = [eye(7)-A -B; C zeros(4)];
+%     temp2 = [zeros(7,1);rr];
+%     temp = [temp temp2]
+    
     % Assemble MPC formulation
     for i = 1:N
 
+       
         ref = [Ref(:,1)
                 0
                 0
                 0];
+            
+        % Delta-Formulation for tracking
+        X_delta_k = (X(:,i)-ref);    
+        X_delta_k_1 = (X(:,i+1)-ref);
+        X_delta_N = (X(:,N+1)-ref);
 
         % cost
         if( i < N )
-            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
+            cost = cost + X_delta_k_1'*Q*X_delta_k_1 + Uin(:,i)'*R*Uin(:,i);
         else
-            cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
+            cost = cost + X_delta_N'*P*X_delta_N + Uin(:,N)'*R*Uin(:,N);
         end
 
         % model
-        const = [const, X(:,i+1) == A*X(:,i) + B*Uin(:,i)];
+        const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i)];
 
         % bounds
-        const = [const, Umin <= Uin(:,i) <= Umax];
-        const = [const, Xmin <= X(:,i+1) <= Xmax];
+        if ( i < N )
+            const = [const, Umin <= Uin(:,i) <= Umax];
+            const = [const, Xmin-ref <= X_delta_k_1 <= Xmax-ref];
+        else
+            const = [const, Umin <= Uin(:,N) <= Umax];
+            const = [const, X_fmin-ref <= X_delta_N <= X_fmax-ref];
+        end
     end
 
     x0 = [0
@@ -237,6 +260,7 @@ if (runSecondPart == true)
         0];
 
     % Part 5 Reference
+    T = 10;
     r = [1.0
         0.1745
         -0.1745
@@ -274,74 +298,76 @@ N = 100;
 P = diag([5 20 20 1 0 0 0]);
 Ld = 1.0*diag([1 1 1 1 0.01 0.01 0.01]);
 
-% Controller Variable Initialization
-X = sdpvar(nx,N+1); % state trajectory: x0,x1,...,xN (columns of X)
-Uin = sdpvar(nu,N); % input trajectory: u0,...,u_{N-1} (columns of U)
-d = sdpvar(nx,N+1);
-Ref = sdpvar(4,1);
-
-% Initialize objective and constraints of the problem
-cost = 0.0; const = [];
-
-% Assemble MPC formulation
-for i = 1:N
+if runThirdPart == true
+    % Controller Variable Initialization
+    X = sdpvar(nx,N+1); % state trajectory: x0,x1,...,xN (columns of X)
+    Uin = sdpvar(nu,N); % input trajectory: u0,...,u_{N-1} (columns of U)
+    d = sdpvar(nx,N+1);
+    Ref = sdpvar(4,1);
     
-    ref = [Ref(:,1)
+    % Initialize objective and constraints of the problem
+    cost = 0.0; const = [];
+    
+    % Assemble MPC formulation
+    for i = 1:N
+        
+        ref = [Ref(:,1)
             0
             0
             0];
-    
-    % cost
-    if( i < N )
-        cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
-    else
-        cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
+        
+        % cost
+        if( i < N )
+            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
+        else
+            cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
+        end
+        
+        % model
+        const = [const, X(:,i+1) == A*X(:,i) + B*Uin(:,i) + d(:,i)];
+        const = [const, d(:,i+1) == d(:,i)];
+        
+        % bounds
+        const = [const, Umin <= Uin(:,i) <= Umax];
+        const = [const, Xmin <= X(1:7,i+1) <= Xmax];
     end
     
-    % model
-    const = [const, X(:,i+1) == A*X(:,i) + B*Uin(:,i) + d(:,i)];
-    const = [const, d(:,i+1) == d(:,i)];
+    A_aug = [A eye(nx); zeros(7) eye(nx)];
+    B_aug = [B; zeros(7,4)];
+    C_aug = [eye(nx) eye(nx)];
     
-    % bounds
-    const = [const, Umin <= Uin(:,i) <= Umax];
-    const = [const, Xmin <= X(1:7,i+1) <= Xmax];
+    L = [eye(nx); Ld];
+    Af = A_aug - L*C_aug;
+    Bf = [B_aug L];
+    
+    filter = struct('Af', Af, 'Bf', Bf);
+    
+    T = 15;
+    
+    r = [0.8
+        0.12
+        -0.12
+        pi/2];
+    % r = [0
+    %     0
+    %     0
+    %     0];
+    
+    % steps = floor(T/sys.Ts);
+    % for step = 1:steps
+    %     r(1,step) = 0.8;
+    %     r(2,step) = 0.12*sin(step*sys.Ts);
+    %     r(3,step) = -0.12*sin(step*sys.Ts);
+    %     r(4,step) = pi/2;
+    % end
+    
+    
+    x0 = zeros(7,1);
+    % Solve and plot
+    options = sdpsettings('solver','quadprog');
+    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' d(:,1)']', Uin(:,1));
+    simQuad( sys_inner, innerController, 0, x0, T, r, filter);
 end
-
-A_aug = [A eye(nx); zeros(7) eye(nx)];
-B_aug = [B; zeros(7,4)];
-C_aug = [eye(nx) eye(nx)];
-
-L = [eye(nx); Ld];
-Af = A_aug - L*C_aug;
-Bf = [B_aug L];
-
-filter = struct('Af', Af, 'Bf', Bf);
-
-T = 15;
-
-r = [0.8
-    0.12
-    -0.12
-    pi/2];
-% r = [0
-%     0
-%     0
-%     0];
-
-% steps = floor(T/sys.Ts);
-% for step = 1:steps
-%     r(1,step) = 0.8;
-%     r(2,step) = 0.12*sin(step*sys.Ts);
-%     r(3,step) = -0.12*sin(step*sys.Ts);
-%     r(4,step) = pi/2;
-% end
-
-
-x0 = zeros(7,1);
-% Solve and plot
-options = sdpsettings('solver','quadprog');
-innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' d(:,1)']', Uin(:,1));
-simQuad( sys_inner, innerController, 0, x0, T, r, filter);
 
 %%%%%%%%%%%%%%%%%%  Simulation of the nonlinear model %%%%%%%%%%%%%%%%%%%%
 fprintf('PART V - simulation of the nonlinear model...\n')
