@@ -3,6 +3,8 @@ close all
 yalmip('clear')
 clc
 
+%MPC Project
+
 % adding the subfolders to the path
 addpath(genpath('YALMIP-master'))
 addpath(genpath('functions'))
@@ -20,9 +22,28 @@ disp('Data successfully loaded')
 
 %%%%%%%%%%%%%%%% ADD YOUR CODE BELOW THIS LINE %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+part = 4;
 runFirstPart = false;
 runSecondPart = false;
-runThirdPart = true;
+runThirdPart = false;
+runFourthPart = false;
+
+switch part
+    case 1
+        runFirstPart = true;
+    case 2
+        runSecondPart = true;
+    case 3
+        runThirdPart = true;
+    case 4
+        runFourthPart = true;
+    otherwise
+        runFirstPart = false;
+        runSecondPart = false;
+        runThirdPart = false;
+        runFourthPart = false;
+        disp('Enter valid number')
+end
 
 %%%%%%%%%%%%%%%%%%%%%    First MPC controller %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART I - First MPC controller...\n')
@@ -203,49 +224,49 @@ if (runSecondPart == true)
     Uin = sdpvar(nu,N); % input trajectory: u0,...,u_{N-1} (columns of U)
     Ref = sdpvar(4,1);
     
-
+    
     % Initialize objective and constraints of the problem
     cost = 0.0; const = [];
     
     % Delta-Formulation for tracking
-%     This calculation gives the steady state solution to be:
-%     xs = ref, us = 0;
-%     syms r1 r2 r3 r4;
-%     rr = [r1;r2;r3;r4];
-%     C = [eye(4) zeros(4,3)];
-%     temp = [eye(7)-A -B; C zeros(4)];
-%     temp2 = [zeros(7,1);rr];
-%     temp = [temp temp2]
+    %     This calculation gives the steady state solution to be:
+    %     xs = ref, us = 0;
+    %     syms r1 r2 r3 r4;
+    %     rr = [r1;r2;r3;r4];
+    %     C = [eye(4) zeros(4,3)];
+    %     temp = [eye(7)-A -B; C zeros(4)];
+    %     temp2 = [zeros(7,1);rr];
+    %     temp = [temp temp2]
     
     % Assemble MPC formulation
     for i = 1:N
-
-       
+        
+        
         ref = [Ref(:,1)
-                0
-                0
-                0];
-            
+            0
+            0
+            0];
+        
         % Delta-Formulation for tracking
-        X_delta_k = (X(:,i)-ref);    
+        X_delta_k = (X(:,i)-ref);
         X_delta_k_1 = (X(:,i+1)-ref);
         X_delta_N = (X(:,N+1)-ref);
-
+        
         % cost
         if( i < N )
             cost = cost + X_delta_k_1'*Q*X_delta_k_1 + Uin(:,i)'*R*Uin(:,i);
         else
             cost = cost + X_delta_N'*P*X_delta_N + Uin(:,N)'*R*Uin(:,N);
         end
-
+        
         % model
         const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i)];
-
+        
         % bounds
         const = [const, Umin <= Uin(:,i) <= Umax];
         const = [const, Xmin-ref <= X_delta_k_1 <= Xmax-ref];
     end
-
+    
     x0 = [0
         0
         0
@@ -253,14 +274,14 @@ if (runSecondPart == true)
         0
         0
         0];
-
+    
     % Part 5 Reference
     T = 10;
     r = [1.0
         0.1745
         -0.1745
         1.7453];
-
+    
     % Part 6 Reference
     T = 10;
     steps = floor(T/sys.Ts);
@@ -270,12 +291,12 @@ if (runSecondPart == true)
         r(3,step) = -0.1745*sin(step*sys.Ts);
         r(4,step) = 1.7453;
     end
-
+    
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)']', Uin(:,1));
     simQuad( sys_inner, innerController, 0, x0, T, r);
-
+    
 end
 
 %%%%%%%%%%%%%%%  First simulation of the nonlinear model %%%%%%%%%%%%%%%%%
@@ -372,81 +393,81 @@ fprintf('PART V - simulation of the nonlinear model...\n')
 fprintf('PART VI - Slew Rate Constraints...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MPC data
-Q = diag([2 2 2 1 0 0 0]);
+Q = diag([5 20 20 1 0 0 0]);
 R = 0.01;
 N = 100;
-P = diag([2 2 2 1 0 0 0]);
+P = diag([5 20 20 1 0 0 0]);
+Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
 
-if (runSecondPart == true)
-    
-    % Controller Variable Initialization
+% Slew rate contraint
+delta = 100*[1
+         1
+         1
+         1];
+
+if (runFourthPart == true)
+% Controller Variable Initialization
     X = sdpvar(nx,N+1); % state trajectory: x0,x1,...,xN (columns of X)
     Uin = sdpvar(nu,N); % input trajectory: u0,...,u_{N-1} (columns of U)
+    d = sdpvar(nx,N+1);
     Ref = sdpvar(4,1);
     
-
     % Initialize objective and constraints of the problem
     cost = 0.0; const = [];
     
     % Assemble MPC formulation
     for i = 1:N
-
-       
+        
         ref = [Ref(:,1)
-                0
-                0
-                0];
-            
-        % Delta-Formulation for tracking
-        X_delta_k = (X(:,i)-ref);    
-        X_delta_k_1 = (X(:,i+1)-ref);
-        X_delta_N = (X(:,N+1)-ref);
-
+            0
+            0
+            0];
+        
         % cost
         if( i < N )
-            cost = cost + X_delta_k_1'*Q*X_delta_k_1 + Uin(:,i)'*R*Uin(:,i);
+            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
         else
-            cost = cost + X_delta_N'*P*X_delta_N + Uin(:,N)'*R*Uin(:,N);
+            cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
         end
-
+        
         % model
-        const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i)];
-
+        const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
+        const = [const, d(:,i+1) == d(:,i)];
+        
         % bounds
         const = [const, Umin <= Uin(:,i) <= Umax];
-        const = [const, Xmin-ref <= X_delta_k_1 <= Xmax-ref];
+        const = [const, Xmin-ref <= X(1:7,i+1)-ref <= Xmax-ref];
+        
+        % Slew Contraints
+        if( i < N )
+            %const = [const, Uin(:,i+1) - Uin(:,i) <= delta];
+        end
     end
+    
+    A_aug = [A eye(nx); zeros(7) eye(nx)];
+    B_aug = [B; zeros(7,4)];
+    C_aug = [eye(nx) eye(nx)];
+    
+    L = [eye(nx); Ld];
+    Af = A_aug - L*C_aug;
+    Bf = [B_aug L];
+    
+    filter = struct('Af', Af, 'Bf', Bf);
 
-    x0 = [0
-        0
-        0
-        0
-        0
-        0
-        0];
-
-    % Part 5 Reference
-    T = 10;
-    r = [1.0
-        0.1745
-        -0.1745
-        1.7453];
-
-    % Part 6 Reference
-    T = 10;
-    steps = floor(T/sys.Ts);
-    for step = 1:steps
-        r(1,step) = 1;
-        r(2,step) = 0.1745*sin(step*sys.Ts);
-        r(3,step) = -0.1745*sin(step*sys.Ts);
-        r(4,step) = 1.7453;
-    end
-
+    
+    T = 15;
+    
+    r = [0.8
+        0.12
+        -0.12
+        pi/2];
+    
+    x0 = zeros(7,1);
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)']', Uin(:,1));
     simQuad( sys_inner, innerController, 0, x0, T, r);
-
+    
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%  Soft Constraints %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART VII - Soft Constraints...\n')
