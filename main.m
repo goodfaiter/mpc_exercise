@@ -27,6 +27,7 @@ runFirstPart = false;
 runSecondPart = false;
 runThirdPart = false;
 runFourthPart = false;
+runFifthPart = false;
 
 switch part
     case 1
@@ -37,6 +38,8 @@ switch part
         runThirdPart = true;
     case 4
         runFourthPart = true;
+    case 5
+        runFifthPart = true;
     otherwise
         runFirstPart = false;
         runSecondPart = false;
@@ -395,12 +398,12 @@ fprintf('PART VI - Slew Rate Constraints...\n')
 % MPC data
 Q = diag([5 20 20 1 0 0 0]);
 R = 0.01;
-N = 100;
+N = 20;
 P = diag([5 20 20 1 0 0 0]);
 Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
 
 % Slew rate contraint
-delta = 0.01*[1
+delta = 0.1*[1
          1
          1
          1];
@@ -432,9 +435,9 @@ if (runFourthPart == true)
         end
         
         % model
-        %const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
-         const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i)];
-       % const = [const, d(:,i+1) == d(:,i)];
+         const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
+         %const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i)];
+         const = [const, d(:,i+1) == d(:,i)];
         
         % bounds
         const = [const, Umin <= Uin(:,i) <= Umax];
@@ -457,7 +460,7 @@ if (runFourthPart == true)
     filter = struct('Af', Af, 'Bf', Bf);
 
     
-    T = 15;
+    T = 4;
     
     r = [0.8
         0.12
@@ -467,14 +470,92 @@ if (runFourthPart == true)
     x0 = zeros(7,1);
     % Solve and plot
     options = sdpsettings('solver','quadprog');
-    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev']', Uin(:,1));
-    simQuad( sys_inner, innerController, 0, x0, T, r);
+    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1));
+    simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 1);
     
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%  Soft Constraints %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART VII - Soft Constraints...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MPC data
+Q = diag([5 20 20 1 0 0 0]);
+R = 0.01;
+N = 20;
+P = diag([5 20 20 1 0 0 0]);
+Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
 
+% Slew rate contraint
+delta = 0.1*[1
+         1
+         1
+         1];
+
+if (runFifthPart == true)
+% Controller Variable Initialization
+    X = sdpvar(nx,N+1); 
+    Uin = sdpvar(nu,N); 
+    d = sdpvar(nx,N+1);
+    Ref = sdpvar(4,1);
+    u_prev = sdpvar(nu,1);
+    
+    % Initialize objective and constraints of the problem
+    cost = 0.0; const = [];
+    
+    % Assemble MPC formulation
+    for i = 1:N
+        
+        ref = [Ref(:,1)
+            0
+            0
+            0];
+        
+        % cost
+        if( i < N )
+            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
+        else
+            cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
+        end
+        
+        % model
+         const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
+         %const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i)];
+         const = [const, d(:,i+1) == d(:,i)];
+        
+        % bounds
+        const = [const, Umin <= Uin(:,i) <= Umax];
+        const = [const, Xmin-ref <= X(1:7,i+1)-ref <= Xmax-ref];
+        
+        % Slew Contraints
+        if( i < N )
+            const = [const, Uin(:,i+1) - Uin(:,i) <= delta];
+        end
+    end
+    
+    A_aug = [A eye(nx); zeros(7) eye(nx)];
+    B_aug = [B; zeros(7,4)];
+    C_aug = [eye(nx) eye(nx)];
+    
+    L = [eye(nx); Ld];
+    Af = A_aug - L*C_aug;
+    Bf = [B_aug L];
+    
+    filter = struct('Af', Af, 'Bf', Bf);
+
+    
+    T = 4;
+    
+    r = [0.8
+        0.12
+        -0.12
+        pi/2];
+    
+    x0 = zeros(7,1);
+    % Solve and plot
+    options = sdpsettings('solver','quadprog');
+    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1));
+    simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 1);
+    
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  FORCES Pro %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART VIII - FORCES Pro...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
