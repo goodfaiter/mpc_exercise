@@ -400,17 +400,18 @@ P = diag([5 20 20 1 0 0 0]);
 Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
 
 % Slew rate contraint
-delta = 100*[1
+delta = 0.01*[1
          1
          1
          1];
 
 if (runFourthPart == true)
 % Controller Variable Initialization
-    X = sdpvar(nx,N+1); % state trajectory: x0,x1,...,xN (columns of X)
-    Uin = sdpvar(nu,N); % input trajectory: u0,...,u_{N-1} (columns of U)
+    X = sdpvar(nx,N+1); 
+    Uin = sdpvar(nu,N); 
     d = sdpvar(nx,N+1);
     Ref = sdpvar(4,1);
+    u_prev = sdpvar(nu,1);
     
     % Initialize objective and constraints of the problem
     cost = 0.0; const = [];
@@ -431,8 +432,9 @@ if (runFourthPart == true)
         end
         
         % model
-        const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
-        const = [const, d(:,i+1) == d(:,i)];
+        %const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
+         const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i)];
+       % const = [const, d(:,i+1) == d(:,i)];
         
         % bounds
         const = [const, Umin <= Uin(:,i) <= Umax];
@@ -440,7 +442,7 @@ if (runFourthPart == true)
         
         % Slew Contraints
         if( i < N )
-            %const = [const, Uin(:,i+1) - Uin(:,i) <= delta];
+            const = [const, Uin(:,i+1) - Uin(:,i) <= delta];
         end
     end
     
@@ -465,7 +467,7 @@ if (runFourthPart == true)
     x0 = zeros(7,1);
     % Solve and plot
     options = sdpsettings('solver','quadprog');
-    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)']', Uin(:,1));
+    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev']', Uin(:,1));
     simQuad( sys_inner, innerController, 0, x0, T, r);
     
 end
