@@ -22,7 +22,7 @@ disp('Data successfully loaded')
 
 %%%%%%%%%%%%%%%% ADD YOUR CODE BELOW THIS LINE %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-part = 4;
+part = 5;
 runFirstPart = false;
 runSecondPart = false;
 runThirdPart = false;
@@ -403,10 +403,7 @@ P = diag([5 20 20 1 0 0 0]);
 Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
 
 % Slew rate contraint
-delta = 0.1*[1
-         1
-         1
-         1];
+delta = 0.1*[1 1 1 1]';  
 
 if (runFourthPart == true)
 % Controller Variable Initialization
@@ -485,10 +482,12 @@ P = diag([5 20 20 1 0 0 0]);
 Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
 
 % Slew rate contraint
-delta = 0.1*[1
-         1
-         1
-         1];
+delta = 0.1*[1 1 1 1]';    
+ 
+% Soft Constraints
+s = 0.1*diag([1 1 1 1]);
+v = 0.1*[1 1 1 1]';  
+    
 
 if (runFifthPart == true)
 % Controller Variable Initialization
@@ -497,6 +496,7 @@ if (runFifthPart == true)
     d = sdpvar(nx,N+1);
     Ref = sdpvar(4,1);
     u_prev = sdpvar(nu,1);
+    epsilon = sdpvar(nu,N); % slack variable
     
     % Initialize objective and constraints of the problem
     cost = 0.0; const = [];
@@ -511,7 +511,8 @@ if (runFifthPart == true)
         
         % cost
         if( i < N )
-            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
+            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i) ...
+                        + v'*epsilon(:,i) + epsilon(:,i)'*s*epsilon(:,i);
         else
             cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
         end
@@ -527,8 +528,11 @@ if (runFifthPart == true)
         
         % Slew Contraints
         if( i < N )
-            const = [const, Uin(:,i+1) - Uin(:,i) <= delta];
+            const = [const, Uin(:,i+1) - Uin(:,i) <= delta + epsilon(:,i)];
         end
+        
+        %Soft Constrants
+        const = [const, 0 <= epsilon(:,i)];
     end
     
     A_aug = [A eye(nx); zeros(7) eye(nx)];
