@@ -1,3 +1,4 @@
+
 clear all
 close all
 yalmip('clear')
@@ -22,7 +23,7 @@ disp('Data successfully loaded')
 
 %%%%%%%%%%%%%%%% ADD YOUR CODE BELOW THIS LINE %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-part = 4;
+part = 1;
 runFirstPart = false;
 runSecondPart = false;
 runThirdPart = false;
@@ -114,7 +115,7 @@ sys_inner = LTISystem('A', A, 'B', B, 'Ts', sys.Ts);
 %%
 
 % Constraint Initialization
-Xmin = [-1.0
+Xmin = 2*[-1.0
     degtorad(-10)
     degtorad(-10)
     degtorad(-180)
@@ -122,7 +123,7 @@ Xmin = [-1.0
     degtorad(-15)
     degtorad(-60)];
 
-Xmax = [1.0
+Xmax = 2*[1.0
     degtorad(10)
     degtorad(10)
     degtorad(180)
@@ -213,7 +214,7 @@ fprintf('PART II - Reference tracking...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MPC data
 Q = diag([2 2 2 1 0 0 0]);
-R = 0.01;
+R = 0.5;
 N = 100;
 P = diag([2 2 2 1 0 0 0]);
 
@@ -308,11 +309,12 @@ fprintf('PART III - First simulation of the nonlinear model...\n')
 fprintf('PART IV - Offset free MPC...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MPC data
-Q = diag([5 20 20 1 0 0 0]);
-R = 0.01;
+Q = diag([5 100 100 1 0 0 0]);
+R = 0.05;
 N = 100;
-P = diag([5 20 20 1 0 0 0]);
+P = 100*diag([5 20 20 1 0 0 0]);
 Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
+
 
 if runThirdPart == true
     % Controller Variable Initialization
@@ -344,6 +346,7 @@ if runThirdPart == true
         const = [const, d(:,i+1) == d(:,i)];
         
         % bounds
+        
         const = [const, Umin <= Uin(:,i) <= Umax];
         const = [const, Xmin-ref <= X(1:7,i+1)-ref <= Xmax-ref];
     end
@@ -364,18 +367,18 @@ if runThirdPart == true
         0.12
         -0.12
         pi/2];
-    r = [0
-        0
-        0
-        0];
+%     r = [0
+%         0
+%         0
+%         0];
     
-    steps = floor(T/sys.Ts);
-    for step = 1:steps
-        r(1,step) = 0.8;
-        r(2,step) = 0.12*sin(step*sys.Ts);
-        r(3,step) = -0.12*sin(step*sys.Ts);
-        r(4,step) = pi/2;
-    end
+%     steps = floor(T/sys.Ts);
+%     for step = 1:steps
+%         r(1,step) = 0.8;
+%         r(2,step) = 0.12*sin(step*sys.Ts);
+%         r(3,step) = -0.12*sin(step*sys.Ts);
+%         r(4,step) = pi/2;
+%     end
     
     
     x0 = zeros(7,1);
