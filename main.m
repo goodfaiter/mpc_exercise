@@ -22,14 +22,17 @@ disp('Data successfully loaded')
 
 %%%%%%%%%%%%%%%% ADD YOUR CODE BELOW THIS LINE %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-part = 5;
+part = 4;
 runFirstPart = false;
 runSecondPart = false;
 runThirdPart = false;
 runFourthPart = false;
 runFifthPart = false;
+invariantSet = false;
 
 switch part
+    case 0.1
+        invariantSet = true;
     case 1
         runFirstPart = true;
     case 2
@@ -45,6 +48,7 @@ switch part
         runSecondPart = false;
         runThirdPart = false;
         runFourthPart = false;
+        invariantSet = false;
         disp('Enter valid number')
 end
 
@@ -73,47 +77,49 @@ sys_inner = LTISystem('A', A, 'B', B, 'Ts', sys.Ts);
 
 %%
 % TODO: Run this onces properly and save the feasible set!
-% lti = LTISystem('A', A, 'B', B);
-%
-% lti.x.min = [-0.1
-%     degtorad(-1)
-%     degtorad(-1)
-%     degtorad(-180)
-%     degtorad(-15)
-%     degtorad(-15)
-%     degtorad(-60)];
-%
-% lti.x.max = [0.1
-%     degtorad(1)
-%     degtorad(1)
-%     degtorad(180)
-%     degtorad(15)
-%     degtorad(15)
-%     degtorad(60)];
-%
-% lti.u.min = [0.0
-%             0.0
-%             0.0
-%             0.0] - us;
-% lti.u.max = [1.0
-%             1.0
-%             1.0
-%             1.0] - us;
-%
-% InvSet = lti.invariantSet();
-%
-% A_f_in = InvSet.A;
-% b_f_in = InvSet.b;
-% for i = 1:size(A_f_in,1)
-%     index = find(A_f_in(i,:));
-%     if(A_f_in(i,index)<0)
-%         X_fmin = [X_fmin b_f_in(i)/A_f_in(i,index)];
-%     else
-%         X_fmax = [X_fmax b_f_in(i)/A_f_in(i,index)];
-%     end
-% end
-% X_fmin = X_fmin';
-% X_fmax = X_fmax';
+if invariantSet == true
+    lti = LTISystem('A', A, 'B', B, 'Ts', sys.Ts);
+    
+    lti.x.min = [-0.1
+        degtorad(-1)
+        degtorad(-1)
+        degtorad(-180)
+        degtorad(-15)
+        degtorad(-15)
+        degtorad(-60)];
+    
+    lti.x.max = [0.1
+        degtorad(1)
+        degtorad(1)
+        degtorad(180)
+        degtorad(15)
+        degtorad(15)
+        degtorad(60)];
+    
+    lti.u.min = [0.0
+        0.0
+        0.0
+        0.0] - us;
+    lti.u.max = [1.0
+        1.0
+        1.0
+        1.0] - us;
+    
+    InvSet = lti.invariantSet();
+    
+    A_f_in = InvSet.A;
+    b_f_in = InvSet.b;
+    for i = 1:size(A_f_in,1)
+        index = find(A_f_in(i,:));
+        if(A_f_in(i,index)<0)
+            X_fmin = [X_fmin b_f_in(i)/A_f_in(i,index)];
+        else
+            X_fmax = [X_fmax b_f_in(i)/A_f_in(i,index)];
+        end
+    end
+    X_fmin = X_fmin';
+    X_fmax = X_fmax';
+end
 %%
 
 % Constraint Initialization
@@ -160,10 +166,11 @@ Umax = [1.0
     1.0] - us;
 
 % MPC data
-Q = diag([2 30 2 1 0 0 0]);
-R = 0.1;
-N = 19;
-P = diag([2 30 2 1 0 0 0]);
+Q = diag([5 100 100 1 0 0 0]);
+R = 0.05;
+N = 20;
+P = 100*diag([5 20 20 1 0 0 0]);
+Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01])
 
 if (runFirstPart == true)
     
@@ -196,6 +203,8 @@ if (runFirstPart == true)
         end
     end
     
+    T = 10;
+    
     % Initial state
     x0 = [-1.0
         0.1745
@@ -208,17 +217,14 @@ if (runFirstPart == true)
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, X(:,1), Uin(:,1));
-    simQuad( sys_inner, innerController, 0, x0, 2.0);
+    simQuad( sys_inner, innerController, 0, x0, T);
 end
 
 %%%%%%%%%%%%%%%%%%%%%  Reference Tracking %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART II - Reference tracking...\n')
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MPC data
-Q = diag([2 2 2 1 0 0 0]);
-R = 0.01;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MPC Data
 N = 100;
-P = diag([2 2 2 1 0 0 0]);
 
 if (runSecondPart == true)
     
@@ -232,8 +238,8 @@ if (runSecondPart == true)
     cost = 0.0; const = [];
     
     % Delta-Formulation for tracking
-    %     This calculation gives the steady state solution to be:
-    %     xs = ref, us = 0;
+    %     %This calculation gives the steady state solution to be:
+    %     %xs = ref, us = 0;
     %     syms r1 r2 r3 r4;
     %     rr = [r1;r2;r3;r4];
     %     C = [eye(4) zeros(4,3)];
@@ -298,7 +304,9 @@ if (runSecondPart == true)
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)']', Uin(:,1));
-    simQuad( sys_inner, innerController, 0, x0, T, r);
+%     codeoptions = getOptions('internal_simpleMPC_solver_1');
+%     innerController = optimizerFORCES(const, cost, codeoptions, [X(:,1)' Ref(:,1)']', Uin(:,1), {'xinit'}, {'u0'});  
+    [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r);
     
 end
 
@@ -310,11 +318,8 @@ fprintf('PART III - First simulation of the nonlinear model...\n')
 %%%%%%%%%%%%%%%%%%%%%%%  Offset free MPC  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART IV - Offset free MPC...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MPC data
-Q = diag([5 20 20 1 0 0 0]);
-R = 0.01;
+% MPC Data
 N = 100;
-P = diag([5 20 20 1 0 0 0]);
 Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
 
 if runThirdPart == true
@@ -334,16 +339,20 @@ if runThirdPart == true
             0
             0
             0];
+        % Delta-Formulation for tracking
+        X_delta_k = (X(:,i)-ref);
+        X_delta_k_1 = (X(:,i+1)-ref);
+        X_delta_N = (X(:,N+1)-ref);
         
         % cost
         if( i < N )
-            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
+            cost = cost + X_delta_k_1'*Q*X_delta_k_1 + Uin(:,i)'*R*Uin(:,i);
         else
-            cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
+            cost = cost + X_delta_N'*P*X_delta_N + Uin(:,N)'*R*Uin(:,N);
         end
         
         % model
-        const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
+        const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i) + d(:,i)];
         const = [const, d(:,i+1) == d(:,i)];
         
         % bounds
@@ -367,6 +376,7 @@ if runThirdPart == true
         0.12
         -0.12
         pi/2];
+    
     r = [0
         0
         0
@@ -385,7 +395,9 @@ if runThirdPart == true
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' d(:,1)']', Uin(:,1));
-    simQuad( sys_inner, innerController, 0, x0, T, r, filter);
+%     codeoptions = getOptions('internal_simpleMPC_solver_1');
+%     innerController = optimizerFORCES(const, cost, codeoptions, [X(:,1)' Ref(:,1)' d(:,1)']', Uin(:,1), {'xinit'}, {'u0'});  
+    [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r, filter);
 end
 
 %%%%%%%%%%%%%%%%%%  Simulation of the nonlinear model %%%%%%%%%%%%%%%%%%%%
@@ -396,14 +408,9 @@ fprintf('PART V - simulation of the nonlinear model...\n')
 fprintf('PART VI - Slew Rate Constraints...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MPC data
-Q = diag([5 20 20 1 0 0 0]);
-R = 0.01;
-N = 20;
-P = diag([5 20 20 1 0 0 0]);
-Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
-
+N = 100;
 % Slew rate contraint
-delta = 0.1*[1 1 1 1]';  
+delta = 0.3*[1 1 1 1]';  
 
 if (runFourthPart == true)
 % Controller Variable Initialization
@@ -424,25 +431,33 @@ if (runFourthPart == true)
             0
             0];
         
+        % Delta-Formulation for tracking
+        X_delta_k = (X(:,i)-ref);
+        X_delta_k_1 = (X(:,i+1)-ref);
+        X_delta_N = (X(:,N+1)-ref);
+        
         % cost
         if( i < N )
-            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i);
+            cost = cost + X_delta_k'*Q*X_delta_k + Uin(:,i)'*R*Uin(:,i);
         else
-            cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
+            cost = cost + X_delta_N'*P*X_delta_N + Uin(:,N)'*R*Uin(:,N);
         end
         
         % model
-         const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
-         %const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i)];
+         const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i) + d(:,i)];
          const = [const, d(:,i+1) == d(:,i)];
         
         % bounds
         const = [const, Umin <= Uin(:,i) <= Umax];
         const = [const, Xmin-ref <= X(1:7,i+1)-ref <= Xmax-ref];
-        
-        % Slew Contraints
-        if( i < N )
+         
+        % Slew Contraints       
+        if i == 1  
+            const = [const, Uin(:,i) - u_prev <= delta];
+            const = [const, Uin(:,i) - u_prev >= -delta];
+        elseif (i < N )
             const = [const, Uin(:,i+1) - Uin(:,i) <= delta];
+            const = [const, Uin(:,i+1) - Uin(:,i) >= -delta];
         end
     end
     
@@ -457,7 +472,7 @@ if (runFourthPart == true)
     filter = struct('Af', Af, 'Bf', Bf);
 
     
-    T = 4;
+    T = 10;
     
     r = [0.8
         0.12
@@ -467,26 +482,24 @@ if (runFourthPart == true)
     x0 = zeros(7,1);
     % Solve and plot
     options = sdpsettings('solver','quadprog');
-    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1));
-    simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 1);
+    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1:2));
+    [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 2);
+    figure(11); clf; grid on; hold on;
+    for i = 1:size(ut,2)-1
+       delta_graph(1:4,i) = ut(1:4,i+1) - ut(1:4,i); 
+    end    
+    plot(t(1:end-1), delta_graph,'LineWidth',1.1);
+    ylabel('Delta of Input'); xlabel('s');
     
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%  Soft Constraints %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART VII - Soft Constraints...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MPC data
-Q = diag([5 20 20 1 0 0 0]);
-R = 0.01;
-N = 20;
-P = diag([5 20 20 1 0 0 0]);
-Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
-
-% Slew rate contraint
-delta = 0.1*[1 1 1 1]';    
- 
+% MPC Data
+N = 100;
 % Soft Constraints
-s = 0.1*diag([1 1 1 1]);
-v = 0.1*[1 1 1 1]';  
+s = 2*diag([1 1 1 1]);
+v = 0.25*[1 1 1 1]';  
     
 
 if (runFifthPart == true)
@@ -509,26 +522,35 @@ if (runFifthPart == true)
             0
             0];
         
+        % Delta-Formulation for tracking
+        X_delta_k = (X(:,i)-ref);
+        X_delta_k_1 = (X(:,i+1)-ref);
+        X_delta_N = (X(:,N+1)-ref);
+        
         % cost
         if( i < N )
-            cost = cost + (X(:,i+1)-ref)'*Q*(X(:,i+1)-ref) + Uin(:,i)'*R*Uin(:,i) ...
+            cost = cost + X_delta_k'*Q*X_delta_k + Uin(:,i)'*R*Uin(:,i) ...
                         + v'*epsilon(:,i) + epsilon(:,i)'*s*epsilon(:,i);
         else
-            cost = cost + (X(:,N+1)-ref)'*P*(X(:,N+1)-ref) + Uin(:,N)'*R*Uin(:,N);
+            cost = cost + X_delta_N'*P*X_delta_N + Uin(:,N)'*R*Uin(:,N);
         end
         
         % model
-         const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i) + d(:,i)];
-         %const = [const, X(:,i+1)-ref == A*X(:,i)-ref + B*Uin(:,i)];
+         const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i) + d(:,i)];
+         %const = [const, X_delta_k_1 == A*X_delta_k + B*Uin(:,i)];
          const = [const, d(:,i+1) == d(:,i)];
         
         % bounds
         const = [const, Umin <= Uin(:,i) <= Umax];
         const = [const, Xmin-ref <= X(1:7,i+1)-ref <= Xmax-ref];
         
-        % Slew Contraints
-        if( i < N )
+        % Slew Contraints       
+        if i == 1  
+            const = [const, Uin(:,i) - u_prev <= delta + epsilon(:,i)];
+            const = [const, Uin(:,i) - u_prev >= -(delta + epsilon(:,i))];
+        elseif (i < N )
             const = [const, Uin(:,i+1) - Uin(:,i) <= delta + epsilon(:,i)];
+            const = [const, Uin(:,i+1) - Uin(:,i) >= -(delta + epsilon(:,i))];
         end
         
         %Soft Constrants
@@ -546,7 +568,7 @@ if (runFifthPart == true)
     filter = struct('Af', Af, 'Bf', Bf);
 
     
-    T = 4;
+    T = 10;
     
     r = [0.8
         0.12
@@ -556,8 +578,18 @@ if (runFifthPart == true)
     x0 = zeros(7,1);
     % Solve and plot
     options = sdpsettings('solver','quadprog');
-    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1));
-    simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 1);
+    innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1:2));
+    [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 2);
+    figure(11); clf; grid on; hold on;
+    for i = 1:size(ut,2)-1
+       delta_graph(1:4,i) = ut(1:4,i+1) - ut(1:4,i);
+       delta_graph_max(1:4,i) = delta';
+       delta_graph_min(1:4,i) = -delta';
+    end    
+    plot(t(1:end-1), delta_graph,'LineWidth',1.1);
+    plot(t(1:end-1), delta_graph_max,'r--');
+    plot(t(1:end-1), delta_graph_min,'r--');
+    ylabel('Delta of Input'); xlabel('s');
     
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  FORCES Pro %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
