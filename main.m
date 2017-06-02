@@ -57,18 +57,6 @@ end
 fprintf('PART I - First MPC controller...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% System Linearization
-% Akon = Ac(6:end,6:end);
-% Bkon = Bc(6:end,:);
-%
-% [nx, nu] = size(Bkon);
-%
-% system_c = ss(Akon,Bkon,[],[]);
-% system_d = c2d(system_c,sys.Ts);
-%
-% A = system_d.A;
-% B = system_d.B;
-
 A = sys.A;
 B = sys.B;
 [nx, nu] = size(B);
@@ -79,8 +67,8 @@ sys_inner = LTISystem('A', A, 'B', B, 'Ts', sys.Ts);
 %%
 
 % MPC data
-Q = diag([5 10 10 1 0 0 0]);
-R = eye(4);
+Q = diag([5 100 100 1 0 0 0]);
+R = 0.05*eye(4);
 N = 20;
 P = 100*diag([5 20 20 1 0 0 0]);
 
