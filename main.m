@@ -1,4 +1,3 @@
-
 clear all
 close all
 yalmip('clear')
@@ -23,9 +22,9 @@ disp('Data successfully loaded')
 
 %%%%%%%%%%%%%%%% ADD YOUR CODE BELOW THIS LINE %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-part = 0.1;
+part = 5;
 runFirstPart = false;
-runSecondPart = false;
+runSecondPart = false;  
 runThirdPart = false;
 runFourthPart = false;
 runFifthPart = false;
@@ -74,20 +73,46 @@ P = 100*diag([5 20 20 1 0 0 0]);
 
 % TODO: Run this onces properly and save the feasible set!
 if invariantSet == true
-    [P_inf,~,F_inf] = dare(A,B,Q,R);
-%     F_inf = -F_inf;
+    
+    % Invariant Terminal Set Computation
+      
+%     lti = LTISystem('A', A, 'B', B, 'Ts', sys.Ts);
+%     
+%     lti.x.min = [-0.1
+%         degtorad(-1)
+%         degtorad(-1)
+%         degtorad(-180)
+%         degtorad(-15)
+%         degtorad(-15)
+%         degtorad(-60)];
+%     
+%     lti.x.max = [0.1
+%         degtorad(1)
+%         degtorad(1)
+%         degtorad(180)
+%         degtorad(15)
+%         degtorad(15)
+%         degtorad(60)];
+%     
+%     lti.u.min = [0.0
+%         0.0
+%         0.0
+%         0.0] - us;
+%     lti.u.max = [1.0
+%         1.0
+%         1.0
+%         1.0] - us;
+%     
+%     InvSet = lti.invariantSet();
+
+    % Terminal Maximum Control Invariant Set Computation
+    [P_inf,~,~] = dare(A,B,Q,R);
     F_inf = -inv(B'*P_inf*B + R)*B'*P_inf*A;
     
-    
-    
-    
     lti = LTISystem('A', A+B*F_inf);
-    
-    
-    A_poly = [-eye(7);-F_inf;eye(7);F_inf];    
-%     A_poly = [eye(7);F_inf];    
 
-    
+    A_poly = [-eye(7);-F_inf;eye(7);F_inf];      
+
     b_poly = [-0.1;
         -degtorad(-1);
         -degtorad(-1);
@@ -104,45 +129,16 @@ if invariantSet == true
         degtorad(15);
         degtorad(60);
         [1;1;1;1]-us];
-    
-%         b_poly = [0.1;
-%         degtorad(1);
-%         degtorad(1);
-%         degtorad(180);
-%         degtorad(15);
-%         degtorad(15);
-%         degtorad(60);
-%         [1;1;1;1]-us];
-    
+
     poly_set = Polyhedron( 'A', A_poly, 'b', b_poly);
-%     poly_set = Polyhedron('lb', lb, 'ub', ub);
 
     InvSet = lti.invariantSet('X', poly_set);
-%     lti.x.with('setConstraint');
-%     lti.x.setConstraint = poly_set;
-%     
-%         
-%         
-%         
-%         InvSet = lti.invariantSet();
-        
-        A_f_in = InvSet.A;
-        b_f_in = InvSet.b;
-        for i = 1:size(A_f_in,1)
-        index = find(A_f_in(i,:));
-        if(A_f_in(i,index)<0)
-            X_fmin = [X_fmin b_f_in(i)/A_f_in(i,index)];
-        else
-            X_fmax = [X_fmax b_f_in(i)/A_f_in(i,index)];
-        end
-        end
-        X_fmin = X_fmin';
-        X_fmax = X_fmax';
+    % Result: Empty polyhedron in R^7
 end
 %%
 
 % Constraint Initialization
-Xmin = 2*[-1.0
+Xmin = [-1.0
     degtorad(-10)
     degtorad(-10)
     degtorad(-180)
@@ -150,7 +146,7 @@ Xmin = 2*[-1.0
     degtorad(-15)
     degtorad(-60)];
 
-Xmax = 2*[1.0
+Xmax = [1.0
     degtorad(10)
     degtorad(10)
     degtorad(180)
@@ -216,7 +212,7 @@ if (runFirstPart == true)
         end
     end
     
-    T = 10;
+    T = 2;
     
     % Initial state
     x0 = [-1.0
@@ -316,6 +312,8 @@ if (runSecondPart == true)
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)']', Uin(:,1));
+    
+    % Forces Optimization
     %     codeoptions = getOptions('internal_simpleMPC_solver_1');
     %     innerController = optimizerFORCES(const, cost, codeoptions, [X(:,1)' Ref(:,1)']', Uin(:,1), {'xinit'}, {'u0'});
     [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r);
@@ -325,13 +323,13 @@ end
 %%%%%%%%%%%%%%%  First simulation of the nonlinear model %%%%%%%%%%%%%%%%%
 fprintf('PART III - First simulation of the nonlinear model...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Did this with innerController from Part II.
 
 %%%%%%%%%%%%%%%%%%%%%%%  Offset free MPC  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('PART IV - Offset free MPC...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MPC Data
+Q = diag([5 100 100 1 20 20 20]);
 Ld = 1.0*diag([1 1.5 1.5 1 0.01 0.01 0.01]);
-
 
 if runThirdPart == true
     % Controller Variable Initialization
@@ -368,8 +366,8 @@ if runThirdPart == true
         
         % bounds
         
-        const = [const, Umin <= Uin(:,i) <= Umax];
-        const = [const, Xmin-ref <= X(1:7,i+1)-ref <= Xmax-ref];
+         const = [const, Umin <= Uin(:,i) <= Umax];
+         const = [const, Xmin-ref <= X(1:7,i+1)-ref <= Xmax-ref];
     end
     
     A_aug = [A eye(nx); zeros(7) eye(nx)];
@@ -389,10 +387,10 @@ if runThirdPart == true
         -0.12
         pi/2];
     
-    r = [0
-        0
-        0
-        0];
+%     r = [0
+%         0
+%         0
+%         0];
     
     steps = floor(T/sys.Ts);
     for step = 1:steps
@@ -401,11 +399,13 @@ if runThirdPart == true
         r(3,step) = -0.12*sin(step*sys.Ts);
         r(4,step) = pi/2;
     end
-    
+   
     x0 = zeros(7,1);
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' d(:,1)']', Uin(:,1));
+    
+    % Forces Optimization
     %     codeoptions = getOptions('internal_simpleMPC_solver_1');
     %     innerController = optimizerFORCES(const, cost, codeoptions, [X(:,1)' Ref(:,1)' d(:,1)']', Uin(:,1), {'xinit'}, {'u0'});
     [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r, filter);
@@ -482,7 +482,6 @@ if (runFourthPart == true)
     
     filter = struct('Af', Af, 'Bf', Bf);
     
-    
     T = 10;
     
     r = [0.8
@@ -491,10 +490,12 @@ if (runFourthPart == true)
         pi/2];
     
     x0 = zeros(7,1);
+    
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1:2));
     [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 2);
+    
     figure(11); clf; grid on; hold on;
     for i = 1:size(ut,2)-1
         delta_graph(1:4,i) = ut(1:4,i+1) - ut(1:4,i);
@@ -508,10 +509,10 @@ fprintf('PART VII - Soft Constraints...\n')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MPC Data
 N = 100;
+
 % Soft Constraints
 s = 2*diag([1 1 1 1]);
 v = 0.25*[1 1 1 1]';
-
 
 if (runFifthPart == true)
     % Controller Variable Initialization
@@ -578,7 +579,6 @@ if (runFifthPart == true)
     
     filter = struct('Af', Af, 'Bf', Bf);
     
-    
     T = 10;
     
     r = [0.8
@@ -587,10 +587,12 @@ if (runFifthPart == true)
         pi/2];
     
     x0 = zeros(7,1);
+    
     % Solve and plot
     options = sdpsettings('solver','quadprog');
     innerController = optimizer(const, cost, options, [X(:,1)' Ref(:,1)' u_prev' d(:,1)']', Uin(:,1:2));
     [xt ut t rt deltat] = simQuad( sys_inner, innerController, 0, x0, T, r, filter, [], 2);
+    
     figure(11); clf; grid on; hold on;
     for i = 1:size(ut,2)-1
         delta_graph(1:4,i) = ut(1:4,i+1) - ut(1:4,i);
