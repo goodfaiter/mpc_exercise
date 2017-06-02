@@ -23,7 +23,7 @@ disp('Data successfully loaded')
 
 %%%%%%%%%%%%%%%% ADD YOUR CODE BELOW THIS LINE %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-part = 0.1;
+part = 1;
 runFirstPart = false;
 runSecondPart = false;
 runThirdPart = false;
@@ -142,7 +142,7 @@ end
 %%
 
 % Constraint Initialization
-Xmin = 2*[-1.0
+Xmin = [-1.0
     degtorad(-10)
     degtorad(-10)
     degtorad(-180)
@@ -150,7 +150,7 @@ Xmin = 2*[-1.0
     degtorad(-15)
     degtorad(-60)];
 
-Xmax = 2*[1.0
+Xmax = [1.0
     degtorad(10)
     degtorad(10)
     degtorad(180)
@@ -216,7 +216,7 @@ if (runFirstPart == true)
         end
     end
     
-    T = 10;
+    T = 3;
     
     % Initial state
     x0 = [-1.0
